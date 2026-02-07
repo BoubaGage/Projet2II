@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion - My BiblioGest</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-page">
+
+    <header class="admin-header">
+        <div class="brand">
+            <img src="/icon/reading_education_knowledge_learning_library_book_icon_256746.png" alt="Logo" class="brand-logo">
+            <span class="brand-name">My BiblioGest</span>
+        </div>
+        <nav class="admin-nav">
+            <a href="page.html" class="admin-nav-link">Accueil</a>
+            <a href="index.html" class="admin-nav-link admin-nav-link--danger">Déconnexion</a>
+        </nav>
+    </header>
+
+    <main class="admin-main">
+        <div class="admin-title-row">
+            <div>
+                <h1 class="admin-title">Répertoire des Archives</h1>
+                <p class="admin-subtitle">Console d'administration v2.0</p>
+            </div>
+            <div id="sync-status" class="admin-sync">
+                <span class="admin-sync-dot"></span>
+                <span class="admin-sync-label">Serveur Actif</span>
+            </div>
+        </div>
+
+        <div class="admin-grid">
+            
+            <section class="admin-sidebar">
+                <div class="admin-panel">
+                    <h2 class="admin-panel-title">Indexation</h2>
+                    
+                    <form id="add-form" class="admin-form">
+                        <div class="form-row">
+                            <div class="form-field">
+                                <label class="form-label">ID</label>
+                                <input type="number" id="form-id" min="1" required placeholder="ID" class="form-input form-input--strong">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label">Année d'édition</label>
+                                <input type="number" id="form-annee" placeholder="Ex: 2024" class="form-input">
+                            </div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-label">Titre de l'ouvrage</label>
+                            <input type="text" id="form-titre" required placeholder="Ex: Les Misérables" class="form-input form-input--strong form-input--italic">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-label">Auteur / Contributeur</label>
+                            <input type="text" id="form-auteur" required placeholder="Ex: Victor Hugo" class="form-input">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-label">Genre / Catégorie</label>
+                            <input type="text" id="form-categorie" placeholder="Ex: Littérature, Science, Histoire..." class="form-input">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-label form-label--accent">Liaison de fichier (PDF)</label>
+                            <div class="file-upload">
+                                <input type="file" id="form-fichier" accept="application/pdf" title="Liaison de fichier (PDF)" class="file-upload-input">
+                                <div class="file-drop">
+                                    <div id="file-icon" class="file-icon">📥</div>
+                                    <span id="file-chosen-name" class="file-name">Choisir le document</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="button" onclick="ajouterLivreDemo()" class="admin-submit">
+                            Valider l'entrée
+                        </button>
+                    </form>
+                    <p id="pdf-status" class="admin-pdf-status"></p>
+                </div>
+            </section>
+
+            <section class="admin-content">
+                <div class="viewer-shell">
+                    <div class="viewer-top">
+                        <div class="viewer-dots">
+                            <span class="viewer-dot viewer-dot--red"></span>
+                            <span class="viewer-dot viewer-dot--yellow"></span>
+                            <span class="viewer-dot viewer-dot--green"></span>
+                        </div>
+                        <span class="viewer-label">CONSOLE_VIEWPORT</span>
+                        <button onclick="window.open(document.getElementById('pdf-viewer').src)" class="viewer-action">Plein écran</button>
+                    </div>
+                    <iframe id="pdf-viewer" title="Visionneur PDF des documents" class="viewer-frame"></iframe>
+                </div>
+
+                <div class="admin-list">
+                    <h2 class="admin-list-title">Index Binaire</h2>
+                    <div id="livres-container" class="admin-cards"></div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script src="admin.js"></script>
+</body>
+</html>

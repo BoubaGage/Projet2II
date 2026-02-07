@@ -1,0 +1,16 @@
+{
+  "extends": [
+    "development"
+  ],
+  "hints": {
+    "compat-api/css": [
+      "default",
+      {
+        "ignore": [
+          "-webkit-text-size-adjust",
+          "background-color: color-mix(in srgb, #fff 80%, transparent)"
+        ]
+      }
+    ]
+  }
+}

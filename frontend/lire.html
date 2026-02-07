@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecteur - My BiblioGest</title>
+    <link rel="stylesheet" href="lire.css">
+</head>
+<body class="reader-page">
+
+    <header class="reader-header">
+        <div class="reader-left">
+            <a href="admin.html" class="reader-back">🏠</a>
+            <h1 id="pdf-title" class="reader-title">Chargement...</h1>
+        </div>
+        <button id="quit-reading" class="reader-quit">
+            Quitter la lecture
+        </button>
+    </header>
+
+    <main class="reader-main">
+        <iframe id="pdf-viewer" src="" class="reader-frame"></iframe>
+    </main>
+
+    <script src="lire.js"></script>
+</body>
+</html>
