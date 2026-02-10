@@ -63,6 +63,24 @@
                             <label class="form-label">Genre / Catégorie</label>
                             <input type="text" id="form-categorie" placeholder="Ex: Littérature, Science, Histoire..." class="form-input">
                         </div>
+                        <div class="form-field">
+                            <label class="form-label">Description</label>
+                            <textarea id="form-description" rows="4" placeholder="Resume, contenu, notes..." class="form-input form-textarea"></textarea>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-label">Couverture (URL image)</label>
+                            <input type="text" id="form-couverture" placeholder="Ex: images/les-miserables.jpg" class="form-input">
+                        </div>
+
+                        <div class="form-field form-field--checkbox">
+                            <label class="form-label">Disponibilite</label>
+                            <label class="form-checkbox">
+                                <input type="checkbox" id="form-emprunte">
+                                <span>Marquer comme emprunte</span>
+                            </label>
+                        </div>
+
 
                         <div class="form-field">
                             <label class="form-label form-label--accent">Liaison de fichier (PDF)</label>
@@ -77,6 +95,9 @@
 
                         <button type="button" onclick="ajouterLivreDemo()" class="admin-submit">
                             Valider l'entrée
+                        </button>
+                        <button type="button" id="cancel-edit" onclick="annulerEdition()" class="admin-cancel">
+                            Annuler edition
                         </button>
                     </form>
                     <p id="pdf-status" class="admin-pdf-status"></p>

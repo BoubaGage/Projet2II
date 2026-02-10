@@ -3,6 +3,7 @@
  */
 
 let pdfSet = new Set();
+let editId = null;
 
 // --- INITIALISATION ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -42,6 +43,13 @@ async function loadLivres() {
         livres.forEach(l => {
             const fileName = l.fichier ? l.fichier.split(/[\/]/).pop() : "";
             const exists = pdfSet.has(fileName);
+            const description = (l.description || "").trim();
+            const descHtml = description
+                ? `<p class="admin-card-description">${description}</p>`
+                : `<p class="admin-card-description admin-card-description--empty">Aucune description</p>`;
+            const statusHtml = l.est_emprunte
+                ? `<span class="admin-card-status admin-card-status--busy">Emprunte</span>`
+                : `<span class="admin-card-status">Disponible</span>`;
             
             const card = document.createElement('div');
             card.className = `admin-card${exists ? '' : ' admin-card--missing'}`;
@@ -49,22 +57,31 @@ async function loadLivres() {
             card.innerHTML = `
                 <div class="admin-card-header">
                     <span class="admin-card-ref">REF_${l.id}</span>
-                    <button onclick="supprimerLivre('${l.titre.replace(/'/g, "\'")}')" 
-                            class="admin-card-delete">
-                        Supprimer
-                    </button>
+                    <div class="admin-card-actions">
+                        <button class="admin-card-edit">Modifier</button>
+                        <button onclick="supprimerLivre('${l.titre.replace(/'/g, "\'")}')" 
+                                class="admin-card-delete">
+                            Supprimer
+                        </button>
+                    </div>
                 </div>
                 <h4 class="admin-card-title" title="${l.titre}">${l.titre}</h4>
-                <p class="admin-card-meta">${l.auteur} ? ${l.annee || 'N/A'}</p>
+                <p class="admin-card-meta">${l.auteur} - ${l.annee || 'N/A'}</p>
+                ${descHtml}
                 
                 <div class="admin-card-footer">
-                    <span class="admin-card-category">${l.categorie || 'Général'}</span>
+                    <span class="admin-card-category">${l.categorie || 'General'}</span>
+                    ${statusHtml}
                     <button onclick="chargerDansLecteur('${fileName}')" 
                             class="admin-card-link">
-                        Inspecter →
+                        Inspecter ->
                     </button>
                 </div>
             `;
+            const editBtn = card.querySelector('.admin-card-edit');
+            if (editBtn) {
+                editBtn.addEventListener('click', () => chargerFormulaire(l));
+            }
             container.appendChild(card);
         });
     } catch (e) { console.error("Erreur de chargement de l'index", e); }
@@ -79,6 +96,83 @@ async function syncFilesFromServer() {
         const files = await res.json();
         pdfSet = new Set(files.map(f => f.split(/[\/]/).pop()));
     } catch (e) { pdfSet = new Set(); }
+}
+
+function setEditMode(active) {
+    const submitBtn = document.querySelector('.admin-submit');
+    const cancelBtn = document.getElementById('cancel-edit');
+    const idInput = document.getElementById('form-id');
+    const titreInput = document.getElementById('form-titre');
+
+    if (active) {
+        if (submitBtn) submitBtn.textContent = "Mettre a jour";
+        if (cancelBtn) cancelBtn.classList.add('admin-cancel--visible');
+        if (idInput) idInput.setAttribute('disabled', 'disabled');
+        if (titreInput) titreInput.setAttribute('disabled', 'disabled');
+    } else {
+        if (submitBtn) submitBtn.textContent = "Valider l'entree";
+        if (cancelBtn) cancelBtn.classList.remove('admin-cancel--visible');
+        if (idInput) idInput.removeAttribute('disabled');
+        if (titreInput) titreInput.removeAttribute('disabled');
+    }
+}
+
+function chargerFormulaire(livre) {
+    if (!livre) return;
+    editId = livre.id;
+    const idInput = document.getElementById('form-id');
+    const titreInput = document.getElementById('form-titre');
+    const auteurInput = document.getElementById('form-auteur');
+    const anneeInput = document.getElementById('form-annee');
+    const catInput = document.getElementById('form-categorie');
+    const descInput = document.getElementById('form-description');
+    const couvInput = document.getElementById('form-couverture');
+    const emprunteInput = document.getElementById('form-emprunte');
+    const fileInput = document.getElementById('form-fichier');
+    const fileNameDisplay = document.getElementById('file-chosen-name');
+    const fileIcon = document.getElementById('file-icon');
+    const status = document.getElementById('pdf-status');
+
+    if (idInput) idInput.value = livre.id || "";
+    if (titreInput) titreInput.value = livre.titre || "";
+    if (auteurInput) auteurInput.value = livre.auteur || "";
+    if (anneeInput) anneeInput.value = livre.annee || "";
+    if (catInput) catInput.value = livre.categorie || "";
+    if (descInput) descInput.value = livre.description || "";
+    if (couvInput) couvInput.value = livre.couverture || "";
+    if (emprunteInput) emprunteInput.checked = !!livre.est_emprunte;
+    if (fileInput) fileInput.value = "";
+    if (fileNameDisplay) {
+        fileNameDisplay.textContent = "Choisir le document";
+        fileNameDisplay.classList.remove('file-name--active');
+    }
+    if (fileIcon) fileIcon.textContent = "PDF";
+    if (status) {
+        status.textContent = "MODE EDITION ACTIVE";
+        status.style.color = "#111827";
+    }
+
+    setEditMode(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function annulerEdition() {
+    editId = null;
+    const form = document.getElementById('add-form');
+    const fileNameDisplay = document.getElementById('file-chosen-name');
+    const fileIcon = document.getElementById('file-icon');
+    const status = document.getElementById('pdf-status');
+    if (form) form.reset();
+    if (fileNameDisplay) {
+        fileNameDisplay.textContent = "Choisir le document";
+        fileNameDisplay.classList.remove('file-name--active');
+    }
+    if (fileIcon) fileIcon.textContent = "PDF";
+    if (status) {
+        status.textContent = "";
+        status.style.color = "#9ca3af";
+    }
+    setEditMode(false);
 }
 
 /**
@@ -96,9 +190,16 @@ function chargerDansLecteur(fileName) {
  * Ajoute un livre : Upload binaire + Enregistrement des données
  */
 async function ajouterLivreDemo() {
+    if (editId !== null) {
+        await modifierLivre();
+        return;
+    }
     const status = document.getElementById('pdf-status');
     const idInput = document.getElementById('form-id');
     const titreInput = document.getElementById('form-titre');
+    const descriptionInput = document.getElementById('form-description');
+    const couvertureInput = document.getElementById('form-couverture');
+    const emprunteInput = document.getElementById('form-emprunte');
     const fileInput = document.getElementById('form-fichier');
     const file = fileInput.files[0];
 
@@ -134,8 +235,13 @@ async function ajouterLivreDemo() {
             auteur: document.getElementById('form-auteur').value,
             annee: document.getElementById('form-annee').value,
             categorie: document.getElementById('form-categorie').value,
-            fichier: file.name
+            fichier: file.name,
+            description: descriptionInput ? descriptionInput.value : "",
+            couverture: couvertureInput ? couvertureInput.value : ""
         });
+        if (emprunteInput && emprunteInput.checked) {
+            params.append('emprunte', '1');
+        }
 
         const addRes = await fetch(`/api/add?${params.toString()}`);
         
@@ -150,6 +256,78 @@ async function ajouterLivreDemo() {
             loadLivres(); // Rafraîchir la liste en bas
         }
 
+    } catch (e) {
+        status.textContent = "ERREUR : " + e.message;
+        status.style.color = "red";
+    }
+}
+
+/**
+ * Modifie un livre existant (sans recrÃ©er)
+ */
+async function modifierLivre() {
+    const status = document.getElementById('pdf-status');
+    const titreInput = document.getElementById('form-titre');
+    const descriptionInput = document.getElementById('form-description');
+    const couvertureInput = document.getElementById('form-couverture');
+    const emprunteInput = document.getElementById('form-emprunte');
+    const fileInput = document.getElementById('form-fichier');
+
+    if (editId === null) return;
+    if (!titreInput.value) {
+        status.textContent = "ERREUR : TITRE OBLIGATOIRE";
+        status.style.color = "red";
+        return;
+    }
+
+    status.textContent = "MISE A JOUR EN COURS...";
+    status.style.color = "#4fc3b6";
+
+    try {
+        let fichier = "";
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const uploadRes = await fetch(`/api/upload?file=${encodeURIComponent(file.name)}`, {
+                method: 'POST',
+                body: await file.arrayBuffer()
+            });
+            if (!uploadRes.ok) throw new Error("Echec du transfert serveur");
+            fichier = file.name;
+        }
+
+        const params = new URLSearchParams({
+            id: editId,
+            titre: titreInput.value,
+            auteur: document.getElementById('form-auteur').value,
+            annee: document.getElementById('form-annee').value,
+            categorie: document.getElementById('form-categorie').value,
+            description: descriptionInput ? descriptionInput.value : "",
+            couverture: couvertureInput ? couvertureInput.value : ""
+        });
+        params.append('emprunte', emprunteInput && emprunteInput.checked ? '1' : '0');
+        if (fichier) params.append('fichier', fichier);
+
+        const res = await fetch(`/api/modifier?${params.toString()}`);
+        let payload = null;
+        try {
+            payload = await res.json();
+        } catch (e) {
+            payload = null;
+        }
+
+        if (res.ok) {
+            annulerEdition();
+            const statusMsg = document.getElementById('pdf-status');
+            if (statusMsg) {
+                statusMsg.textContent = "MISE A JOUR REUSSIE !";
+                statusMsg.style.color = "green";
+            }
+            loadLivres();
+        } else {
+            const msg = payload && payload.error ? payload.error : "MISE A JOUR IMPOSSIBLE";
+            status.textContent = "ERREUR : " + msg;
+            status.style.color = "red";
+        }
     } catch (e) {
         status.textContent = "ERREUR : " + e.message;
         status.style.color = "red";

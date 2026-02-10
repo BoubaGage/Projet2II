@@ -15,4 +15,6 @@ typedef struct Livre {
   char categorie[64];
   char fichier[256];
   Bool est_emprunte;
+  char description[512];
+  char couverture[256];
 } Livre;

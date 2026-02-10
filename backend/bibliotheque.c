@@ -134,14 +134,16 @@ void biblio_save(const Bibliotheque *bibli, const char *nom_fichier){
     for (int i = 0; i < TABLE_SIZE; i++){
         NoeudLivre *actuel = bibli->table.table[i].head;
         while (actuel != NULL){
-            fprintf(fichier, "%d;%s;%s;%d;%s;%s;%d\n",
+            fprintf(fichier, "%d;%s;%s;%d;%s;%s;%d;%s;%s\n",
                 actuel->data.id,
                 actuel->data.titre,
                 actuel->data.auteur,
                 actuel->data.annee,
                 actuel->data.categorie,
                 actuel->data.fichier,
-                actuel->data.est_emprunte);
+                actuel->data.est_emprunte,
+                actuel->data.description,
+                actuel->data.couverture);
             actuel = actuel->noeudnext;
         }
     }
@@ -157,23 +159,39 @@ void biblio_load(Bibliotheque *bibli, const char *nom_fichier){
         printf("Aucune fichier de sauvegarde trouvé : %s\n", nom_fichier);
         return;
     }
-    char ligne[2000];
+    char ligne[4096];
     int livre_count = 0;
     while (fgets(ligne, sizeof(ligne),fichier)){
+        ligne[strcspn(ligne, "\r\n")] = '\0';
         Livre nouv_livre;
-        int emprunte;
-        int n = sscanf(ligne, "%d;%[^;];%[^;];%d;%[^;];%[^;];%d",
+        memset(&nouv_livre, 0, sizeof(Livre));
+
+        char desc[512] = "";
+        char couv[256] = "";
+        int emprunte = 0;
+        int n = sscanf(ligne, "%d;%[^;];%[^;];%d;%[^;];%[^;];%d;%[^;];%[^;]",
             &nouv_livre.id,
             nouv_livre.titre,
             nouv_livre.auteur,
             &nouv_livre.annee,
             nouv_livre.categorie,
             nouv_livre.fichier,
-            &emprunte);
-            if (n == 7){
-                nouv_livre.est_emprunte = (emprunte == 1) ? VRAI : FAUX;
-                biblio_add(bibli, &nouv_livre);
-                livre_count++;
+            &emprunte,
+            desc,
+            couv);
+
+        if (n >= 7) {
+            nouv_livre.est_emprunte = (emprunte == 1) ? VRAI : FAUX;
+            if (n >= 8) {
+                strncpy(nouv_livre.description, desc, sizeof(nouv_livre.description) - 1);
+                nouv_livre.description[sizeof(nouv_livre.description) - 1] = '\0';
+            }
+            if (n >= 9) {
+                strncpy(nouv_livre.couverture, couv, sizeof(nouv_livre.couverture) - 1);
+                nouv_livre.couverture[sizeof(nouv_livre.couverture) - 1] = '\0';
+            }
+            biblio_add(bibli, &nouv_livre);
+            livre_count++;
         }
     }
     fclose(fichier);
@@ -182,7 +200,7 @@ void biblio_load(Bibliotheque *bibli, const char *nom_fichier){
 char *biblio_to_json(const Bibliotheque *bibli){
     if (bibli == NULL)
         return NULL;
-    size_t taille_max = (bibli->nb_livres * 500) + 1024;
+    size_t taille_max = (bibli->nb_livres * 900) + 1024;
     char *json = malloc(taille_max);
     if (json == NULL)
         return NULL;
@@ -197,7 +215,7 @@ char *biblio_to_json(const Bibliotheque *bibli){
             if (!premier_livre){
                 strcat(json, ",\n");
             }
-            char livre_json[3000];
+            char livre_json[4096];
            snprintf(livre_json, sizeof(livre_json),
   "  {\n"
   "    \"id\": %d,\n"
@@ -206,7 +224,9 @@ char *biblio_to_json(const Bibliotheque *bibli){
   "    \"annee\": %d,\n"
   "    \"categorie\": \"%s\",\n"
   "    \"fichier\": \"%s\",\n"
-  "    \"est_emprunte\": %s\n"
+  "    \"est_emprunte\": %s,\n"
+  "    \"description\": \"%s\",\n"
+  "    \"couverture\": \"%s\"\n"
   "  }",
   actuel->data.id,
   actuel->data.titre,
@@ -214,7 +234,9 @@ char *biblio_to_json(const Bibliotheque *bibli){
   actuel->data.annee,
   actuel->data.categorie,
   actuel->data.fichier,
-  actuel->data.est_emprunte ? "true" : "false");
+  actuel->data.est_emprunte ? "true" : "false",
+  actuel->data.description,
+  actuel->data.couverture);
 
             strcat(json, livre_json);
             premier_livre = FAUX;

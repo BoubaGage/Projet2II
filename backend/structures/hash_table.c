@@ -93,6 +93,10 @@ if (existant != NULL) {
     strncpy(existant->fichier, new_info->fichier, sizeof(existant->fichier) - 1);
     existant->fichier[sizeof(existant->fichier) - 1] = '\0';
     existant->est_emprunte = new_info->est_emprunte;
+    strncpy(existant->description, new_info->description, sizeof(existant->description) - 1);
+    existant->description[sizeof(existant->description) - 1] = '\0';
+    strncpy(existant->couverture, new_info->couverture, sizeof(existant->couverture) - 1);
+    existant->couverture[sizeof(existant->couverture) - 1] = '\0';
 }
 
 }

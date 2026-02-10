@@ -61,7 +61,7 @@ static int is_safe_filename(const char *s) {
 static char *biblio_categorie_to_json(const Bibliotheque *bibli, const char *categorie) {
   if (bibli == NULL || categorie == NULL) return NULL;
 
-  size_t taille_max = (bibli->nb_livres * 500) + 1024;
+  size_t taille_max = (bibli->nb_livres * 900) + 1024;
   char *json = malloc(taille_max);
   if (json == NULL) return NULL;
 
@@ -74,7 +74,7 @@ static char *biblio_categorie_to_json(const Bibliotheque *bibli, const char *cat
       if (str_eq_ci(actuel->data.categorie, categorie)) {
         if (!premier_livre) strcat(json, ",\n");
 
-        char livre_json[3000];
+        char livre_json[4096];
         snprintf(livre_json, sizeof(livre_json),
                  "  {\n"
                  "    \"id\": %d,\n"
@@ -83,7 +83,9 @@ static char *biblio_categorie_to_json(const Bibliotheque *bibli, const char *cat
                  "    \"annee\": %d,\n"
                  "    \"categorie\": \"%s\",\n"
                  "    \"fichier\": \"%s\",\n"
-                 "    \"est_emprunte\": %s\n"
+                 "    \"est_emprunte\": %s,\n"
+                 "    \"description\": \"%s\",\n"
+                 "    \"couverture\": \"%s\"\n"
                  "  }",
                  actuel->data.id,
                  actuel->data.titre,
@@ -91,7 +93,9 @@ static char *biblio_categorie_to_json(const Bibliotheque *bibli, const char *cat
                  actuel->data.annee,
                  actuel->data.categorie,
                  actuel->data.fichier,
-                 actuel->data.est_emprunte ? "true" : "false");
+                 actuel->data.est_emprunte ? "true" : "false",
+                 actuel->data.description,
+                 actuel->data.couverture);
         strcat(json, livre_json);
         premier_livre = FAUX;
       }
@@ -101,6 +105,20 @@ static char *biblio_categorie_to_json(const Bibliotheque *bibli, const char *cat
 
   strcat(json, "\n]");
   return json;
+}
+
+static Livre *biblio_find_by_id(Bibliotheque *bibli, int id) {
+  if (bibli == NULL) return NULL;
+  for (int i = 0; i < TABLE_SIZE; i++) {
+    NoeudLivre *actuel = bibli->table.table[i].head;
+    while (actuel != NULL) {
+      if (actuel->data.id == id) {
+        return &actuel->data;
+      }
+      actuel = actuel->noeudnext;
+    }
+  }
+  return NULL;
 }
 
 static int ends_with_ci(const char *s, const char *suffix) {
@@ -225,6 +243,7 @@ if (uri_eq(hm, "/api/livres")) {
     else if (uri_eq(hm, "/api/add")) {
         char id_s[10], annee_s[10], titre[128], auteur[128];
         char categorie[64], fichier[256], emprunte_s[16];
+        char description[512], couverture[256];
         
         // Extraction des données de l'URL
         int n1 = mg_http_get_var(&hm->query, "id", id_s, sizeof(id_s));
@@ -236,6 +255,8 @@ if (uri_eq(hm, "/api/livres")) {
         int n7 = mg_http_get_var(&hm->query, "fichier", fichier, sizeof(fichier));
         int n8 = mg_http_get_var(&hm->query, "emprunte", emprunte_s, sizeof(emprunte_s));
         int n9 = (n8 > 0) ? n8 : mg_http_get_var(&hm->query, "est_emprunte", emprunte_s, sizeof(emprunte_s));
+        int n10 = mg_http_get_var(&hm->query, "description", description, sizeof(description));
+        int n11 = mg_http_get_var(&hm->query, "couverture", couverture, sizeof(couverture));
 
         if (n1 > 0 && n2 > 0 && n3 > 0) {
             Livre n;
@@ -253,12 +274,101 @@ if (uri_eq(hm, "/api/livres")) {
                 n.est_emprunte = VRAI;
               }
             }
+            if (n10 > 0) {
+              strncpy(n.description, description, sizeof(n.description) - 1);
+              n.description[sizeof(n.description) - 1] = '\0';
+            }
+            if (n11 > 0) {
+              strncpy(n.couverture, couverture, sizeof(n.couverture) - 1);
+              n.couverture[sizeof(n.couverture) - 1] = '\0';
+            }
 
             biblio_add(&ma_biblio, &n);
             fichiers_sauvegarder(&ma_biblio, s_data_file); // Sauvegarde auto
             mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\": \"success\"}\n");
         } else {
             mg_http_reply(c, 400, "", "{\"error\": \"Champs manquants\"}\n");
+        }
+    }
+
+    // --- ROUTE 3B : Modifier un livre (API) ---
+    else if (uri_eq(hm, "/api/modifier")) {
+        char id_s[10], annee_s[10], titre[128], auteur[128];
+        char categorie[64], fichier[256], emprunte_s[16];
+        char description[512] = "";
+        char couverture[256] = "";
+
+        int n1 = mg_http_get_var(&hm->query, "id", id_s, sizeof(id_s));
+        int n2 = mg_http_get_var(&hm->query, "titre", titre, sizeof(titre));
+        int n3 = mg_http_get_var(&hm->query, "auteur", auteur, sizeof(auteur));
+        int n4 = mg_http_get_var(&hm->query, "annee", annee_s, sizeof(annee_s));
+        int n5 = mg_http_get_var(&hm->query, "categorie", categorie, sizeof(categorie));
+        int n6 = (n5 > 0) ? n5 : mg_http_get_var(&hm->query, "cat", categorie, sizeof(categorie));
+        int n7 = mg_http_get_var(&hm->query, "fichier", fichier, sizeof(fichier));
+        int n8 = mg_http_get_var(&hm->query, "emprunte", emprunte_s, sizeof(emprunte_s));
+        int n9 = (n8 > 0) ? n8 : mg_http_get_var(&hm->query, "est_emprunte", emprunte_s, sizeof(emprunte_s));
+        int n10 = mg_http_get_var(&hm->query, "description", description, sizeof(description));
+        int n11 = mg_http_get_var(&hm->query, "couverture", couverture, sizeof(couverture));
+
+        if (n1 > 0) {
+            Livre *existant = biblio_find_by_id(&ma_biblio, atoi(id_s));
+            if (existant == NULL) {
+                mg_http_reply(c, 404, "", "{\"error\": \"Livre introuvable\"}\n");
+            } else {
+                if (n2 > 0 && strcmp(titre, existant->titre) != 0) {
+                    mg_http_reply(c, 400, "", "{\"error\": \"Modification du titre interdite\"}\n");
+                    return;
+                }
+                Livre updated = *existant;
+                char ancien_titre[128];
+                strncpy(ancien_titre, existant->titre, sizeof(ancien_titre) - 1);
+                ancien_titre[sizeof(ancien_titre) - 1] = '\0';
+
+                if (n2 > 0) {
+                    strncpy(updated.titre, titre, sizeof(updated.titre) - 1);
+                    updated.titre[sizeof(updated.titre) - 1] = '\0';
+                }
+                if (n3 > 0) {
+                    strncpy(updated.auteur, auteur, sizeof(updated.auteur) - 1);
+                    updated.auteur[sizeof(updated.auteur) - 1] = '\0';
+                }
+                if (n4 > 0) updated.annee = atoi(annee_s);
+                if (n6 > 0) {
+                    strncpy(updated.categorie, categorie, sizeof(updated.categorie) - 1);
+                    updated.categorie[sizeof(updated.categorie) - 1] = '\0';
+                }
+                if (n7 > 0) {
+                    strncpy(updated.fichier, fichier, sizeof(updated.fichier) - 1);
+                    updated.fichier[sizeof(updated.fichier) - 1] = '\0';
+                }
+                if (n9 > 0) {
+                    if (strcmp(emprunte_s, "1") == 0 || str_eq_ci(emprunte_s, "true") ||
+                        str_eq_ci(emprunte_s, "oui")) {
+                        updated.est_emprunte = VRAI;
+                    } else {
+                        updated.est_emprunte = FAUX;
+                    }
+                }
+                if (n10 >= 0) {
+                    strncpy(updated.description, description, sizeof(updated.description) - 1);
+                    updated.description[sizeof(updated.description) - 1] = '\0';
+                }
+                if (n11 >= 0) {
+                    strncpy(updated.couverture, couverture, sizeof(updated.couverture) - 1);
+                    updated.couverture[sizeof(updated.couverture) - 1] = '\0';
+                }
+
+                if (strcmp(ancien_titre, updated.titre) != 0) {
+                    hash_remove(&ma_biblio.table, ancien_titre);
+                    hash_insert(&ma_biblio.table, &updated);
+                } else {
+                    *existant = updated;
+                }
+                fichiers_sauvegarder(&ma_biblio, s_data_file);
+                mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\": \"modifie\"}\n");
+            }
+        } else {
+            mg_http_reply(c, 400, "", "{\"error\": \"Parametre id manquant\"}\n");
         }
     }
 

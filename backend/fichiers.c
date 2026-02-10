@@ -19,7 +19,7 @@ Bool fichiers_charger(Bibliotheque *bibli, const char *path) {
     if (fichier == NULL)
         return FAUX; 
   
-    char ligne[1024];
+    char ligne[4096];
     while (fgets(ligne, sizeof(ligne), fichier)) {
         nouvelle_ligne(ligne);
         
@@ -29,15 +29,26 @@ Bool fichiers_charger(Bibliotheque *bibli, const char *path) {
         Livre livre;
         memset(&livre, 0, sizeof(Livre)); 
 
-       
+        char desc[512] = "";
+        char couv[256] = "";
         int emprunte = 0;
-if (sscanf(ligne, "%d|%[^|]|%[^|]|%d|%[^|]|%[^|]|%d",
+        int n = sscanf(ligne, "%d|%[^|]|%[^|]|%d|%[^|]|%[^|]|%d|%[^|]|%[^|]",
            &livre.id, livre.titre, livre.auteur,
            &livre.annee, livre.categorie, livre.fichier,
-           &emprunte) == 7) {
-    livre.est_emprunte = (emprunte == 1) ? VRAI : FAUX;
-    biblio_add(bibli, &livre);
-}
+           &emprunte, desc, couv);
+
+        if (n >= 7) {
+            livre.est_emprunte = (emprunte == 1) ? VRAI : FAUX;
+            if (n >= 8) {
+                strncpy(livre.description, desc, sizeof(livre.description) - 1);
+                livre.description[sizeof(livre.description) - 1] = '\0';
+            }
+            if (n >= 9) {
+                strncpy(livre.couverture, couv, sizeof(livre.couverture) - 1);
+                livre.couverture[sizeof(livre.couverture) - 1] = '\0';
+            }
+            biblio_add(bibli, &livre);
+        }
 
     }
 
@@ -60,10 +71,10 @@ Bool fichiers_sauvegarder(const Bibliotheque *bibli, const char *path){
     while (actuel != NULL) { 
       Livre *livre = &actuel->data;
 
-      fprintf(fichier, "%d|%s|%s|%d|%s|%s|%d\n", 
+      fprintf(fichier, "%d|%s|%s|%d|%s|%s|%d|%s|%s\n", 
               livre->id, livre->titre, livre->auteur, 
               livre->annee, livre->categorie, livre->fichier,
-              livre->est_emprunte);
+              livre->est_emprunte, livre->description, livre->couverture);
       actuel = actuel->noeudnext;
     }
   }

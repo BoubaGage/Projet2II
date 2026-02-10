@@ -80,40 +80,62 @@ function creerCarteLivre(livre) {
     const div = document.createElement('div');
     div.className = "book-card";
     
-    let icon = "📖";
+    let icon = "????";
     const cat = (livre.categorie || "").toLowerCase();
-    if (cat.includes("hist")) icon = "📜";
-    else if (cat.includes("sci") || cat.includes("tech")) icon = "🔬";
-    else if (cat.includes("roman") || cat.includes("litt")) icon = "🖋️";
-    else if (cat.includes("art")) icon = "🎨";
+    if (cat.includes("hist")) icon = "????";
+    else if (cat.includes("sci") || cat.includes("tech")) icon = "????";
+    else if (cat.includes("roman") || cat.includes("litt")) icon = "???????";
+    else if (cat.includes("art")) icon = "????";
 
-    // MODIFICATION ICI : Math.abs(livre.id) pour forcer l'affichage positif au cas où
     const affichageId = Math.abs(livre.id);
+    const estEmprunte = livre.est_emprunte === true || livre.est_emprunte === 1 || livre.est_emprunte === "true";
+    const couverture = (livre.couverture || "").trim();
+    const description = (livre.description || "").trim();
+    const detailsText = description ? description : "Aucune description disponible.";
+    const detailsClass = description ? "" : " book-details--empty";
+    const coverHtml = couverture
+        ? `<img src="${couverture}" alt="Couverture de ${livre.titre}" class="book-cover-img">`
+        : `<span class="book-icon">${icon}</span>`;
+    const lireHref = livre.fichier
+        ? `lire.html?titre=${encodeURIComponent(livre.titre || '')}&fichier=${encodeURIComponent(livre.fichier)}`
+        : 'admin.html';
 
     div.innerHTML = `
-        <div class="book-cover">
-            <span class="book-icon">${icon}</span>
-            <span class="book-id">ID: ${affichageId}</span>
-            <div class="book-year">
-                 <span class="book-year-text">${livre.annee || 'Année inconnue'}</span>
+        <a class="book-cover-link" href="${lireHref}">
+            <div class="book-cover${estEmprunte ? ' book-cover--unavailable' : ''}">
+                ${coverHtml}
+                <span class="book-id">ID: ${affichageId}</span>
+                ${estEmprunte ? '<span class="book-status">Livre non disponible</span>' : ''}
+                <div class="book-year">
+                     <span class="book-year-text">${livre.annee || 'Annee inconnue'}</span>
+                </div>
             </div>
-        </div>
+        </a>
         
         <h3 class="book-title" title="${livre.titre}">${livre.titre}</h3>
         <p class="book-author">${livre.auteur}</p>
         
         <div class="book-meta">
             <span class="book-category">
-                ${livre.categorie || 'Général'}
+                ${livre.categorie || 'General'}
             </span>
-            <a href="admin.html" class="book-link">
-               Détails →
-            </a>
+            <button type="button" class="book-link book-link--details">
+               Details ->
+            </button>
+        </div>
+        <div class="book-details${detailsClass}">
+            <p class="book-details-text">${detailsText}</p>
         </div>
     `;
+    const detailsBtn = div.querySelector('.book-link--details');
+    const detailsBox = div.querySelector('.book-details');
+    if (detailsBtn && detailsBox) {
+        detailsBtn.addEventListener('click', () => {
+            detailsBox.classList.toggle('book-details--open');
+        });
+    }
     return div;
 }
-
 // --- LOGIQUE DES FILTRES ---
 function extraireCategories(livres) {
     const filterContainer = document.getElementById('category-filters');
