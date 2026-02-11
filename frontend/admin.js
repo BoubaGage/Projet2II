@@ -4,6 +4,8 @@
 
 let pdfSet = new Set();
 let editId = null;
+let lastViewerUrl = "";
+let lastViewerTitle = "";
 
 // --- INITIALISATION ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -44,20 +46,68 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadLivres() {
     const container = document.getElementById('livres-container');
     
-    // On synchronise la liste des fichiers présents sur le serveur
+    // On synchronise la liste des fichiers pr?sents sur le serveur
     await syncFilesFromServer();
 
     try {
         const res = await fetch('/api/livres');
-        const livres = await res.json();
+        const livresLocaux = await res.json();
+
+        let livresApi = [];
+        try {
+            livresApi = await chargerLivresApiAdmin();
+        } catch (apiErr) {
+            livresApi = [];
+        }
+
+        const livres = [...livresLocaux, ...livresApi];
         container.innerHTML = '';
 
         if (!livres || livres.length === 0) {
-            container.innerHTML = '<p class="admin-empty">Base de données vide</p>';
+            container.innerHTML = '<p class="admin-empty">Base de donn?es vide</p>';
             return;
         }
 
         livres.forEach(l => {
+            if (l.source === 'api') {
+                const description = (l.description || "").trim();
+                const descHtml = description
+                    ? `<p class="admin-card-description">${description}</p>`
+                    : `<p class="admin-card-description admin-card-description--empty">Aucune description</p>`;
+                const coverHtml = l.couverture
+                    ? `<img src="${l.couverture}" alt="Couverture" style="width:100%; border-radius:8px;">`
+                    : '';
+
+                const card = document.createElement('div');
+                card.className = 'admin-card';
+                card.style.cursor = l.lien ? 'pointer' : 'default';
+                card.innerHTML = `
+                    <div class="admin-card-header">
+                        <span class="admin-card-ref">API_${l.id}</span>
+                    </div>
+                    <h4 class="admin-card-title" title="${l.titre}">${l.titre}</h4>
+                    <p class="admin-card-meta">${l.auteur}</p>
+                    ${coverHtml}
+                    ${descHtml}
+                    <div class="admin-card-footer">
+                        <span class="admin-card-category">${l.categorie || 'General'}</span>
+                        <button type="button" class="admin-card-link">Inspecter -></button>
+                    </div>
+                `;
+                card.addEventListener('click', () => {
+                    if (l.lien) chargerDansLecteurExterne(l.lien, l.titre);
+                });
+                const apiInspectBtn = card.querySelector('.admin-card-link');
+                if (apiInspectBtn) {
+                    apiInspectBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (l.lien) chargerDansLecteurExterne(l.lien, l.titre);
+                    });
+                }
+                container.appendChild(card);
+                return;
+            }
+
             const fileName = l.fichier ? l.fichier.split(/[\/]/).pop() : "";
             const exists = pdfSet.has(fileName);
             const description = (l.description || "").trim();
@@ -70,6 +120,7 @@ async function loadLivres() {
             
             const card = document.createElement('div');
             card.className = `admin-card${exists ? '' : ' admin-card--missing'}`;
+            card.style.cursor = fileName ? 'pointer' : 'default';
             
             card.innerHTML = `
                 <div class="admin-card-header">
@@ -89,8 +140,7 @@ async function loadLivres() {
                 <div class="admin-card-footer">
                     <span class="admin-card-category">${l.categorie || 'General'}</span>
                     ${statusHtml}
-                    <button onclick="chargerDansLecteur('${fileName}')" 
-                            class="admin-card-link">
+                    <button type="button" class="admin-card-link">
                         Inspecter ->
                     </button>
                 </div>
@@ -99,6 +149,20 @@ async function loadLivres() {
             if (editBtn) {
                 editBtn.addEventListener('click', () => chargerFormulaire(l));
             }
+            const deleteBtn = card.querySelector('.admin-card-delete');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', (e) => e.stopPropagation());
+            }
+            const inspectBtn = card.querySelector('.admin-card-link');
+            if (inspectBtn) {
+                inspectBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (fileName) chargerDansLecteur(fileName, l.titre);
+                });
+            }
+            card.addEventListener('click', () => {
+                if (fileName) chargerDansLecteur(fileName, l.titre);
+            });
             container.appendChild(card);
         });
     } catch (e) { console.error("Erreur de chargement de l'index", e); }
@@ -114,6 +178,61 @@ async function syncFilesFromServer() {
         pdfSet = new Set(files.map(f => f.split(/[\/]/).pop()));
     } catch (e) { pdfSet = new Set(); }
 }
+
+async function chargerLivresApiAdmin() {
+    const res = await fetch('https://gutendex.com/books/?mime_type=application/pdf');
+    if (!res.ok) throw new Error('API indisponible');
+    const data = await res.json();
+    return (data.results || []).slice(0, 10).map(normalizeGutendexAdmin);
+}
+
+function pickFormat(formats, prefix) {
+    if (!formats) return '';
+    for (const key in formats) {
+        if (key.startsWith(prefix)) return formats[key];
+    }
+    return '';
+}
+
+function getCategorieDescriptionGutendex(b) {
+    const shelves = Array.isArray(b.bookshelves) ? b.bookshelves : [];
+    const subjects = Array.isArray(b.subjects) ? b.subjects : [];
+    const summaries = Array.isArray(b.summaries) ? b.summaries : [];
+
+    const categorie = shelves[0] || subjects[0] || 'Sans categorie';
+    const description = summaries[0] ||
+        (subjects.length ? subjects.slice(0, 3).join(', ') : 'Description indisponible');
+
+    return { categorie, description };
+}
+
+function normalizeGutendexAdmin(b) {
+    const formats = b.formats || {};
+    const cover = formats['image/jpeg'] || formats['image/png'] || '';
+    const pdf = formats['application/pdf'] || pickFormat(formats, 'application/pdf');
+    const html = pickFormat(formats, 'text/html');
+    const epub = formats['application/epub+zip'] || '';
+    const link = pdf || html || epub || '';
+    const format = pdf ? 'pdf' : (html ? 'html' : (epub ? 'epub' : ''));
+    const auteur = (b.authors && b.authors[0] && b.authors[0].name)
+        ? b.authors[0].name
+        : 'Auteur inconnu';
+    const { categorie, description } = getCategorieDescriptionGutendex(b);
+
+    return {
+        id: b.id,
+        titre: b.title || 'Sans titre',
+        auteur,
+        annee: '',
+        categorie,
+        description,
+        couverture: cover,
+        lien: link,
+        format,
+        source: 'api'
+    };
+}
+
 
 function setEditMode(active) {
     const submitBtn = document.querySelector('.admin-submit');
@@ -212,10 +331,31 @@ function annulerEdition() {
 /**
  * Charge un fichier PDF dans l'iframe de prévisualisation
  */
-function chargerDansLecteur(fileName) {
+function chargerDansLecteur(fileName, titre = "") {
     if (!fileName) return;
     const viewer = document.getElementById('pdf-viewer');
     viewer.src = `/api/afficher?fichier=${encodeURIComponent(fileName)}`;
+    lastViewerUrl = viewer.src;
+    lastViewerTitle = titre || fileName;
+}
+
+function chargerDansLecteurExterne(url, titre = "") {
+    if (!url) return;
+    const viewer = document.getElementById('pdf-viewer');
+    if (viewer) {
+        viewer.src = url;
+        lastViewerUrl = url;
+        lastViewerTitle = titre || "";
+    }
+}
+
+function ouvrirPleinEcran() {
+    const viewer = document.getElementById('pdf-viewer');
+    const url = lastViewerUrl || (viewer ? viewer.src : '');
+    if (!url) return;
+    const titre = lastViewerTitle || '';
+    const target = `lire.html?titre=${encodeURIComponent(titre)}&url=${encodeURIComponent(url)}`;
+    window.open(target, '_blank');
 }
 
 async function uploadCouvertureSiBesoin() {

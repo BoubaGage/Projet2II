@@ -37,23 +37,37 @@ async function chargerLivres(query = "", categorie = "") {
     try {
         const res = await fetch(url);
         if (!res.ok) throw new Error("Erreur serveur");
-        
-        const livres = await res.json();
-        
+
+        const livresLocaux = await res.json();
+
+        let livresApi = [];
+        try {
+            livresApi = await chargerLivresApi(query);
+        } catch (apiErr) {
+            livresApi = [];
+        }
+
+        if (categorie) {
+            const catLower = categorie.toLowerCase();
+            livresApi = livresApi.filter(l => (l.categorie || "").toLowerCase().includes(catLower));
+        }
+
+        const livres = [...livresLocaux, ...livresApi];
+
         grid.innerHTML = "";
-        
+
         if (!livres || livres.length === 0) {
             grid.innerHTML = `
                 <div class="books-empty">
-                    <p class="books-empty-text">Aucun ouvrage ne correspond à votre recherche.</p>
+                    <p class="books-empty-text">Aucun ouvrage ne correspond ? votre recherche.</p>
                     <button onclick="resetSearch()" class="books-empty-btn">
-                        Réinitialiser les filtres
+                        R?initialiser les filtres
                     </button>
                 </div>`;
             return;
         }
 
-        // Toujours extraire les catégories pour être sûr d'avoir les nouvelles
+       
         extraireCategories(livres);
 
         livres.forEach(livre => {
@@ -64,7 +78,7 @@ async function chargerLivres(query = "", categorie = "") {
         if (categorie) {
             resultTitle.innerHTML = `Genre : <span class="result-accent">${categorie}</span>`;
         } else if (query) {
-            resultTitle.innerHTML = `Résultats pour : <span class="result-accent">"${query}"</span>`;
+            resultTitle.innerHTML = `R?sultats pour : <span class="result-accent">"${query}"</span>`;
         } else {
             resultTitle.innerText = "Toute la collection";
         }
@@ -74,6 +88,67 @@ async function chargerLivres(query = "", categorie = "") {
         console.error("Fetch error:", err);
     }
 }
+
+async function chargerLivresApi(query = "") {
+    let apiUrl = "https://gutendex.com/books/?mime_type=application/pdf";
+    if (query) {
+        apiUrl += `&search=${encodeURIComponent(query)}`;
+    }
+    const res = await fetch(apiUrl);
+    if (!res.ok) throw new Error("Erreur API Gutendex");
+    const data = await res.json();
+    return (data.results || []).slice(0, 10).map(normalizeGutendex);
+}
+
+function getCategorieDescriptionGutendex(b) {
+    const shelves = Array.isArray(b.bookshelves) ? b.bookshelves : [];
+    const subjects = Array.isArray(b.subjects) ? b.subjects : [];
+    const summaries = Array.isArray(b.summaries) ? b.summaries : [];
+
+    const categorie = shelves[0] || subjects[0] || "Sans categorie";
+    const description = summaries[0] ||
+        (subjects.length ? subjects.slice(0, 3).join(", ") : "Description indisponible");
+
+    return { categorie, description };
+}
+
+
+function pickFormat(formats, prefix) {
+    if (!formats) return "";
+    for (const key in formats) {
+        if (key.startsWith(prefix)) return formats[key];
+    }
+    return "";
+}
+
+function normalizeGutendex(b) {
+    const formats = b.formats || {};
+    const cover = formats["image/jpeg"] || formats["image/png"] || "";
+    const pdf = formats["application/pdf"] || pickFormat(formats, "application/pdf");
+    const html = pickFormat(formats, "text/html");
+    const epub = formats["application/epub+zip"] || "";
+    const link = pdf || html || epub || "";
+    const format = pdf ? "pdf" : (html ? "html" : (epub ? "epub" : ""));
+    const auteur = (b.authors && b.authors[0] && b.authors[0].name)
+        ? b.authors[0].name
+        : "Auteur inconnu";
+    const { categorie, description } = getCategorieDescriptionGutendex(b);
+
+    return {
+        id: b.id,
+        titre: b.title || "Sans titre",
+        auteur,
+        annee: "",
+        categorie,
+        description,
+        couverture: cover,
+        est_emprunte: false,
+        lien: link,
+        format,
+        source: "api"
+    };
+}
+
 
 // --- GÉNÉRATION DU DOM ---
 function creerCarteLivre(livre) {
@@ -96,12 +171,17 @@ function creerCarteLivre(livre) {
     const coverHtml = couverture
         ? `<img src="${couverture}" alt="Couverture de ${livre.titre}" class="book-cover-img">`
         : `<span class="book-icon">${icon}</span>`;
-    const lireHref = livre.fichier
-        ? `lire.html?titre=${encodeURIComponent(livre.titre || '')}&fichier=${encodeURIComponent(livre.fichier)}`
-        : 'admin.html';
+    const lienExterne = (livre.lien || "").trim();
+    const formatExterne = (livre.format || "").trim();
+    const lireHref = lienExterne
+        ? `lire.html?titre=${encodeURIComponent(livre.titre || '')}&url=${encodeURIComponent(lienExterne)}&format=${encodeURIComponent(formatExterne)}`
+        : (livre.fichier
+            ? `lire.html?titre=${encodeURIComponent(livre.titre || '')}&fichier=${encodeURIComponent(livre.fichier)}`
+            : 'admin.html');
+    const externalAttrs = lienExterne ? '' : '';
 
     div.innerHTML = `
-        <a class="book-cover-link" href="${lireHref}">
+        <a class="book-cover-link" href="${lireHref}"${externalAttrs}>
             <div class="book-cover${estEmprunte ? ' book-cover--unavailable' : ''}">
                 ${coverHtml}
                 <span class="book-id">ID: ${affichageId}</span>
