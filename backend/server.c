@@ -16,6 +16,7 @@ static const char *s_root_dir = "frontend";
 static const char *s_listening_address = "http://0.0.0.0:8000";
 static const char *s_data_file = "data/livres.dat";
 static const char *s_books_dir = "data/livres";
+static const char *s_covers_dir = "data/couvertures";
 
 static struct Bibliotheque ma_biblio;
 // -------------------------
@@ -450,6 +451,27 @@ if (uri_eq(hm, "/api/livres")) {
       mg_http_serve_file(c, hm, path, &opts);
     }
 
+    // --- ROUTE 7B : Afficher une couverture image ---
+    else if (uri_eq(hm, "/api/couverture")) {
+      char fichier[256];
+      if (mg_http_get_var(&hm->query, "fichier", fichier, sizeof(fichier)) > 0) {
+        const char *base = basename_of(fichier);
+        if (!is_safe_filename(base)) {
+          mg_http_reply(c, 400, "", "{\"error\": \"Nom de fichier invalide\"}\n");
+          return;
+        }
+
+        char path[512];
+        snprintf(path, sizeof(path), "%s/%s", s_covers_dir, base);
+        struct mg_http_serve_opts opts = {
+            .mime_types = "jpg=image/jpeg,jpeg=image/jpeg,png=image/png,webp=image/webp,gif=image/gif"
+        };
+        mg_http_serve_file(c, hm, path, &opts);
+      } else {
+        mg_http_reply(c, 400, "", "{\"error\": \"Parametre fichier manquant\"}\n");
+      }
+    }
+
     // --- ROUTE 8 : Liste des PDFs ---
     else if (uri_eq(hm, "/api/pdfs")) {
       char *json = pdfs_to_json(s_books_dir);
@@ -465,6 +487,12 @@ if (uri_eq(hm, "/api/livres")) {
     else if (uri_eq(hm, "/api/upload")) {
       // Upload brut: /api/upload?file=nom.pdf&offset=0
       mg_http_upload(c, hm, &mg_fs_posix, s_books_dir, 50 * 1024 * 1024);
+    }
+
+    // --- ROUTE 9B : Upload couverture image ---
+    else if (uri_eq(hm, "/api/upload_couverture")) {
+      // Upload brut: /api/upload_couverture?file=nom.jpg&offset=0
+      mg_http_upload(c, hm, &mg_fs_posix, s_covers_dir, 10 * 1024 * 1024);
     }
 
     // --- ROUTE 9 : Sauvegarder ---

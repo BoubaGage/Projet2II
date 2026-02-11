@@ -9,18 +9,35 @@ let editId = null;
 document.addEventListener('DOMContentLoaded', () => {
     loadLivres();
 
-    // Mise à jour visuelle du nom de fichier lors de la sélection
+    // Mise ? jour visuelle du nom de fichier lors de la s?lection
     const fileInput = document.getElementById('form-fichier');
     const fileNameDisplay = document.getElementById('file-chosen-name');
     const fileIcon = document.getElementById('file-icon');
+    const coverFileInput = document.getElementById('form-couverture-file');
+    const coverNameDisplay = document.getElementById('cover-chosen-name');
+    const coverIcon = document.getElementById('cover-icon');
 
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            fileNameDisplay.textContent = e.target.files[0].name;
-            fileNameDisplay.classList.add('file-name--active');
-            fileIcon.textContent = "📄";
-        }
-    });
+    if (fileInput && fileNameDisplay && fileIcon) {
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                fileNameDisplay.textContent = e.target.files[0].name;
+                fileNameDisplay.classList.add('file-name--active');
+                fileIcon.textContent = "??";
+            }
+        });
+    }
+
+    const coverInput = document.getElementById('form-couverture-file');
+
+    if (coverInput && coverNameDisplay && coverIcon) {
+        coverInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                coverNameDisplay.textContent = e.target.files[0].name;
+                coverNameDisplay.classList.add('file-name--active');
+                coverIcon.textContent = "???";
+            }
+        });
+    }
 });
 
 // --- CHARGEMENT DES DONNÉES ---
@@ -126,7 +143,9 @@ function chargerFormulaire(livre) {
     const anneeInput = document.getElementById('form-annee');
     const catInput = document.getElementById('form-categorie');
     const descInput = document.getElementById('form-description');
-    const couvInput = document.getElementById('form-couverture');
+    const coverFileInput = document.getElementById('form-couverture-file');
+    const coverNameDisplay = document.getElementById('cover-chosen-name');
+    const coverIcon = document.getElementById('cover-icon');
     const emprunteInput = document.getElementById('form-emprunte');
     const fileInput = document.getElementById('form-fichier');
     const fileNameDisplay = document.getElementById('file-chosen-name');
@@ -139,7 +158,6 @@ function chargerFormulaire(livre) {
     if (anneeInput) anneeInput.value = livre.annee || "";
     if (catInput) catInput.value = livre.categorie || "";
     if (descInput) descInput.value = livre.description || "";
-    if (couvInput) couvInput.value = livre.couverture || "";
     if (emprunteInput) emprunteInput.checked = !!livre.est_emprunte;
     if (fileInput) fileInput.value = "";
     if (fileNameDisplay) {
@@ -147,6 +165,12 @@ function chargerFormulaire(livre) {
         fileNameDisplay.classList.remove('file-name--active');
     }
     if (fileIcon) fileIcon.textContent = "PDF";
+    if (coverFileInput) coverFileInput.value = "";
+    if (coverNameDisplay) {
+        coverNameDisplay.textContent = "Choisir une image";
+        coverNameDisplay.classList.remove('file-name--active');
+    }
+    if (coverIcon) coverIcon.textContent = "???";
     if (status) {
         status.textContent = "MODE EDITION ACTIVE";
         status.style.color = "#111827";
@@ -161,6 +185,9 @@ function annulerEdition() {
     const form = document.getElementById('add-form');
     const fileNameDisplay = document.getElementById('file-chosen-name');
     const fileIcon = document.getElementById('file-icon');
+    const coverFileInput = document.getElementById('form-couverture-file');
+    const coverNameDisplay = document.getElementById('cover-chosen-name');
+    const coverIcon = document.getElementById('cover-icon');
     const status = document.getElementById('pdf-status');
     if (form) form.reset();
     if (fileNameDisplay) {
@@ -168,12 +195,19 @@ function annulerEdition() {
         fileNameDisplay.classList.remove('file-name--active');
     }
     if (fileIcon) fileIcon.textContent = "PDF";
+    if (coverFileInput) coverFileInput.value = "";
+    if (coverNameDisplay) {
+        coverNameDisplay.textContent = "Choisir une image";
+        coverNameDisplay.classList.remove('file-name--active');
+    }
+    if (coverIcon) coverIcon.textContent = "???";
     if (status) {
         status.textContent = "";
         status.style.color = "#9ca3af";
     }
     setEditMode(false);
 }
+
 
 /**
  * Charge un fichier PDF dans l'iframe de prévisualisation
@@ -182,6 +216,23 @@ function chargerDansLecteur(fileName) {
     if (!fileName) return;
     const viewer = document.getElementById('pdf-viewer');
     viewer.src = `/api/afficher?fichier=${encodeURIComponent(fileName)}`;
+}
+
+async function uploadCouvertureSiBesoin() {
+    const coverFileInput = document.getElementById('form-couverture-file');
+
+    if (coverFileInput && coverFileInput.files && coverFileInput.files.length > 0) {
+        const file = coverFileInput.files[0];
+        const uploadRes = await fetch(`/api/upload_couverture?file=${encodeURIComponent(file.name)}`, {
+            method: 'POST',
+            body: await file.arrayBuffer()
+        });
+        if (!uploadRes.ok) throw new Error("Echec du transfert couverture");
+
+        return `/api/couverture?fichier=${encodeURIComponent(file.name)}`;
+    }
+
+    return "";
 }
 
 // --- ACTIONS DE GESTION ---
@@ -198,7 +249,6 @@ async function ajouterLivreDemo() {
     const idInput = document.getElementById('form-id');
     const titreInput = document.getElementById('form-titre');
     const descriptionInput = document.getElementById('form-description');
-    const couvertureInput = document.getElementById('form-couverture');
     const emprunteInput = document.getElementById('form-emprunte');
     const fileInput = document.getElementById('form-fichier');
     const file = fileInput.files[0];
@@ -228,6 +278,8 @@ async function ajouterLivreDemo() {
 
         if (!uploadRes.ok) throw new Error("Échec du transfert serveur");
 
+        const coverUrl = await uploadCouvertureSiBesoin();
+
         // 2. ENREGISTREMENT DANS LE FICHIER .DAT DU SERVEUR
         const params = new URLSearchParams({
             id: idInput.value,
@@ -236,9 +288,9 @@ async function ajouterLivreDemo() {
             annee: document.getElementById('form-annee').value,
             categorie: document.getElementById('form-categorie').value,
             fichier: file.name,
-            description: descriptionInput ? descriptionInput.value : "",
-            couverture: couvertureInput ? couvertureInput.value : ""
+            description: descriptionInput ? descriptionInput.value : ""
         });
+        if (coverUrl) params.append('couverture', coverUrl);
         if (emprunteInput && emprunteInput.checked) {
             params.append('emprunte', '1');
         }
@@ -252,6 +304,11 @@ async function ajouterLivreDemo() {
             // Reset de l'affichage du fichier
             document.getElementById('file-chosen-name').textContent = "Choisir le document";
             document.getElementById('file-chosen-name').classList.remove('file-name--active');
+            const coverNameDisplay = document.getElementById('cover-chosen-name');
+            if (coverNameDisplay) {
+                coverNameDisplay.textContent = "Choisir une image";
+                coverNameDisplay.classList.remove('file-name--active');
+            }
             
             loadLivres(); // Rafraîchir la liste en bas
         }
@@ -269,7 +326,6 @@ async function modifierLivre() {
     const status = document.getElementById('pdf-status');
     const titreInput = document.getElementById('form-titre');
     const descriptionInput = document.getElementById('form-description');
-    const couvertureInput = document.getElementById('form-couverture');
     const emprunteInput = document.getElementById('form-emprunte');
     const fileInput = document.getElementById('form-fichier');
 
@@ -295,17 +351,19 @@ async function modifierLivre() {
             fichier = file.name;
         }
 
+        const coverUrl = await uploadCouvertureSiBesoin();
+
         const params = new URLSearchParams({
             id: editId,
             titre: titreInput.value,
             auteur: document.getElementById('form-auteur').value,
             annee: document.getElementById('form-annee').value,
             categorie: document.getElementById('form-categorie').value,
-            description: descriptionInput ? descriptionInput.value : "",
-            couverture: couvertureInput ? couvertureInput.value : ""
+            description: descriptionInput ? descriptionInput.value : ""
         });
         params.append('emprunte', emprunteInput && emprunteInput.checked ? '1' : '0');
         if (fichier) params.append('fichier', fichier);
+        if (coverUrl) params.append('couverture', coverUrl);
 
         const res = await fetch(`/api/modifier?${params.toString()}`);
         let payload = null;

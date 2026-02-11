@@ -41,36 +41,42 @@
                         <div class="form-row">
                             <div class="form-field">
                                 <label class="form-label">ID</label>
-                                <input type="number" id="form-id" min="1" required placeholder="ID" class="form-input form-input--strong">
+                                <input type="number" id="form-id" min="1" required class="form-input form-input--strong" title="ID de l'ouvrage">
                             </div>
-                            <div class="form-field">
-                                <label class="form-label">Année d'édition</label>
-                                <input type="number" id="form-annee" placeholder="Ex: 2024" class="form-input">
-                            </div>
+                        <div class="form-field">
+                            <label class="form-label">Année d'édition</label>
+                            <input type="number" id="form-annee" class="form-input" title="Année d'édition de l'ouvrage">
+                        </div>
                         </div>
 
                         <div class="form-field">
                             <label class="form-label">Titre de l'ouvrage</label>
-                            <input type="text" id="form-titre" required placeholder="Ex: Les Misérables" class="form-input form-input--strong form-input--italic">
+                            <input type="text" id="form-titre" required class="form-input form-input--strong form-input--italic" title="Titre de l'ouvrage">
                         </div>
 
                         <div class="form-field">
                             <label class="form-label">Auteur / Contributeur</label>
-                            <input type="text" id="form-auteur" required placeholder="Ex: Victor Hugo" class="form-input">
+                            <input type="text" id="form-auteur" required class="form-input" title="Auteur ou contributeur de l'ouvrage">
                         </div>
 
                         <div class="form-field">
                             <label class="form-label">Genre / Catégorie</label>
-                            <input type="text" id="form-categorie" placeholder="Ex: Littérature, Science, Histoire..." class="form-input">
+                            <input type="text" id="form-categorie" class="form-input" title="Genre ou catégorie de l'ouvrage">
                         </div>
                         <div class="form-field">
                             <label class="form-label">Description</label>
-                            <textarea id="form-description" rows="4" placeholder="Resume, contenu, notes..." class="form-input form-textarea"></textarea>
+                            <textarea id="form-description" rows="4" class="form-input form-textarea" title="Description de l'ouvrage"></textarea>
                         </div>
 
                         <div class="form-field">
-                            <label class="form-label">Couverture (URL image)</label>
-                            <input type="text" id="form-couverture" placeholder="Ex: images/les-miserables.jpg" class="form-input">
+                            <label class="form-label form-label--accent">Couverture (upload image)</label>
+                            <div class="file-upload">
+                                <input type="file" id="form-couverture-file" accept="image/*" title="Liaison de couverture (image)" class="file-upload-input">
+                                <div class="file-drop">
+                                    <div id="cover-icon" class="file-icon">🖼️</div>
+                                    <span id="cover-chosen-name" class="file-name">Choisir une image</span>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="form-field form-field--checkbox">
