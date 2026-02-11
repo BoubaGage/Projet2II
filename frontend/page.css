@@ -317,10 +317,23 @@ button {
     transform: translate(0.25rem, 0.25rem);
 }
 
+.book-card--borrowed {
+    opacity: 0.72;
+}
+
+.book-card--borrowed:hover {
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 1);
+    transform: none;
+}
+
 .book-cover-link {
     display: block;
     color: inherit;
     cursor: pointer;
+}
+
+.book-cover-link--disabled {
+    cursor: not-allowed;
 }
 
 .book-cover {

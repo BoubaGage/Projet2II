@@ -6,6 +6,81 @@ let pdfSet = new Set();
 let editId = null;
 let lastViewerUrl = "";
 let lastViewerTitle = "";
+const BORROW_STORAGE_KEY = "bibliogest.borrow.overrides.v1";
+const ADMIN_REFRESH_DEBOUNCE_MS = 350;
+let refreshDebounceTimer = null;
+let adminPdfsController = null;
+let adminLocalController = null;
+let adminApiController = null;
+let adminApiLivresCache = [];
+let adminApiLivresLoaded = false;
+
+function normalizeBorrowFlag(value) {
+    return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function makeBorrowKey(livre) {
+    const source = livre && livre.source === "api" ? "api" : "local";
+    const id = livre && livre.id != null ? String(livre.id) : "";
+    return `${source}:${id}`;
+}
+
+function readBorrowOverrides() {
+    try {
+        const raw = localStorage.getItem(BORROW_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return {};
+        return parsed;
+    } catch (e) {
+        return {};
+    }
+}
+
+function writeBorrowOverrides(overrides) {
+    localStorage.setItem(BORROW_STORAGE_KEY, JSON.stringify(overrides));
+}
+
+function resolveBorrowState(livre, overrides = null) {
+    const safeOverrides = overrides || readBorrowOverrides();
+    const key = makeBorrowKey(livre);
+    if (Object.prototype.hasOwnProperty.call(safeOverrides, key)) {
+        return !!safeOverrides[key];
+    }
+    return normalizeBorrowFlag(livre && livre.est_emprunte);
+}
+
+function setBorrowOverride(livre, emprunte) {
+    const overrides = readBorrowOverrides();
+    overrides[makeBorrowKey(livre)] = !!emprunte;
+    writeBorrowOverrides(overrides);
+}
+
+function clearBorrowOverride(livre) {
+    const key = makeBorrowKey(livre);
+    const overrides = readBorrowOverrides();
+    if (Object.prototype.hasOwnProperty.call(overrides, key)) {
+        delete overrides[key];
+        writeBorrowOverrides(overrides);
+    }
+}
+
+function rafraichirLivres(immediate = false) {
+    if (immediate) {
+        if (refreshDebounceTimer) {
+            clearTimeout(refreshDebounceTimer);
+            refreshDebounceTimer = null;
+        }
+        loadLivres();
+        return;
+    }
+
+    if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
+    refreshDebounceTimer = setTimeout(() => {
+        refreshDebounceTimer = null;
+        loadLivres();
+    }, ADMIN_REFRESH_DEBOUNCE_MS);
+}
 
 // --- INITIALISATION ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -45,22 +120,42 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- CHARGEMENT DES DONNÉES ---
 async function loadLivres() {
     const container = document.getElementById('livres-container');
+    if (!container) return;
     
-    // On synchronise la liste des fichiers pr?sents sur le serveur
-    await syncFilesFromServer();
+    if (adminPdfsController) adminPdfsController.abort();
+    if (adminLocalController) adminLocalController.abort();
+    if (adminApiController) adminApiController.abort();
+    adminPdfsController = new AbortController();
+    adminLocalController = new AbortController();
+    adminApiController = new AbortController();
+    const pdfSignal = adminPdfsController.signal;
+    const localSignal = adminLocalController.signal;
+    const apiSignal = adminApiController.signal;
 
     try {
-        const res = await fetch('/api/livres');
+        // On synchronise la liste des fichiers pr?sents sur le serveur
+        await syncFilesFromServer(pdfSignal);
+
+        const res = await fetch('/api/livres', { signal: localSignal });
+        if (!res.ok) throw new Error("Erreur serveur");
         const livresLocaux = await res.json();
 
         let livresApi = [];
         try {
-            livresApi = await chargerLivresApiAdmin();
+            livresApi = await chargerLivresApiAdmin(apiSignal);
         } catch (apiErr) {
+            if (apiErr.name === "AbortError") throw apiErr;
             livresApi = [];
         }
 
-        const livres = [...livresLocaux, ...livresApi];
+        const borrowOverrides = readBorrowOverrides();
+        const livres = [...livresLocaux, ...livresApi].map((livre) => ({
+            ...livre,
+            est_emprunte: resolveBorrowState(livre, borrowOverrides)
+        }));
+
+        if (pdfSignal.aborted || localSignal.aborted || apiSignal.aborted) return;
+
         container.innerHTML = '';
 
         if (!livres || livres.length === 0) {
@@ -69,6 +164,11 @@ async function loadLivres() {
         }
 
         livres.forEach(l => {
+            const estEmprunte = normalizeBorrowFlag(l.est_emprunte);
+            const statusHtml = estEmprunte
+                ? `<span class="admin-card-status admin-card-status--busy">Emprunté</span>`
+                : `<span class="admin-card-status">Disponible</span>`;
+
             if (l.source === 'api') {
                 const description = (l.description || "").trim();
                 const descHtml = description
@@ -79,7 +179,7 @@ async function loadLivres() {
                     : '';
 
                 const card = document.createElement('div');
-                card.className = 'admin-card';
+                card.className = `admin-card${estEmprunte ? ' admin-card--borrowed' : ''}`;
                 card.style.cursor = l.lien ? 'pointer' : 'default';
                 card.innerHTML = `
                     <div class="admin-card-header">
@@ -91,6 +191,12 @@ async function loadLivres() {
                     ${descHtml}
                     <div class="admin-card-footer">
                         <span class="admin-card-category">${l.categorie || 'General'}</span>
+                        ${statusHtml}
+                        <label class="admin-card-toggle">
+                            <input type="checkbox" class="admin-card-toggle-input" ${estEmprunte ? 'checked' : ''}>
+                            <span class="admin-card-toggle-switch" aria-hidden="true"></span>
+                            <span class="admin-card-toggle-text">Emprunté</span>
+                        </label>
                         <button type="button" class="admin-card-link">Inspecter -></button>
                     </div>
                 `;
@@ -104,6 +210,18 @@ async function loadLivres() {
                         if (l.lien) chargerDansLecteurExterne(l.lien, l.titre);
                     });
                 }
+                const apiBorrowToggle = card.querySelector('.admin-card-toggle-input');
+                const apiBorrowToggleWrap = card.querySelector('.admin-card-toggle');
+                if (apiBorrowToggleWrap) {
+                    apiBorrowToggleWrap.addEventListener('click', (e) => e.stopPropagation());
+                }
+                if (apiBorrowToggle) {
+                    apiBorrowToggle.addEventListener('click', (e) => e.stopPropagation());
+                    apiBorrowToggle.addEventListener('change', (e) => {
+                        setBorrowOverride(l, e.target.checked);
+                        rafraichirLivres();
+                    });
+                }
                 container.appendChild(card);
                 return;
             }
@@ -114,44 +232,59 @@ async function loadLivres() {
             const descHtml = description
                 ? `<p class="admin-card-description">${description}</p>`
                 : `<p class="admin-card-description admin-card-description--empty">Aucune description</p>`;
-            const statusHtml = l.est_emprunte
-                ? `<span class="admin-card-status admin-card-status--busy">Emprunte</span>`
-                : `<span class="admin-card-status">Disponible</span>`;
-            
+
             const card = document.createElement('div');
-            card.className = `admin-card${exists ? '' : ' admin-card--missing'}`;
+            card.className = `admin-card${exists ? '' : ' admin-card--missing'}${estEmprunte ? ' admin-card--borrowed' : ''}`;
             card.style.cursor = fileName ? 'pointer' : 'default';
-            
+
             card.innerHTML = `
                 <div class="admin-card-header">
                     <span class="admin-card-ref">REF_${l.id}</span>
                     <div class="admin-card-actions">
-                        <button class="admin-card-edit">Modifier</button>
-                        <button onclick="supprimerLivre('${l.titre.replace(/'/g, "\'")}')" 
-                                class="admin-card-delete">
-                            Supprimer
-                        </button>
+                        <button type="button" class="admin-card-edit">Modifier</button>
+                        <button type="button" class="admin-card-delete">Supprimer</button>
                     </div>
                 </div>
                 <h4 class="admin-card-title" title="${l.titre}">${l.titre}</h4>
                 <p class="admin-card-meta">${l.auteur} - ${l.annee || 'N/A'}</p>
                 ${descHtml}
-                
+
                 <div class="admin-card-footer">
                     <span class="admin-card-category">${l.categorie || 'General'}</span>
                     ${statusHtml}
-                    <button type="button" class="admin-card-link">
-                        Inspecter ->
-                    </button>
+                    <label class="admin-card-toggle">
+                        <input type="checkbox" class="admin-card-toggle-input" ${estEmprunte ? 'checked' : ''}>
+                        <span class="admin-card-toggle-switch" aria-hidden="true"></span>
+                        <span class="admin-card-toggle-text">Emprunté</span>
+                    </label>
+                    <button type="button" class="admin-card-link">Inspecter -></button>
                 </div>
             `;
             const editBtn = card.querySelector('.admin-card-edit');
             if (editBtn) {
-                editBtn.addEventListener('click', () => chargerFormulaire(l));
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    chargerFormulaire(l);
+                });
             }
             const deleteBtn = card.querySelector('.admin-card-delete');
             if (deleteBtn) {
-                deleteBtn.addEventListener('click', (e) => e.stopPropagation());
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    supprimerLivre(l);
+                });
+            }
+            const borrowToggle = card.querySelector('.admin-card-toggle-input');
+            const borrowToggleWrap = card.querySelector('.admin-card-toggle');
+            if (borrowToggleWrap) {
+                borrowToggleWrap.addEventListener('click', (e) => e.stopPropagation());
+            }
+            if (borrowToggle) {
+                borrowToggle.addEventListener('click', (e) => e.stopPropagation());
+                borrowToggle.addEventListener('change', (e) => {
+                    setBorrowOverride(l, e.target.checked);
+                    rafraichirLivres();
+                });
             }
             const inspectBtn = card.querySelector('.admin-card-link');
             if (inspectBtn) {
@@ -165,25 +298,38 @@ async function loadLivres() {
             });
             container.appendChild(card);
         });
-    } catch (e) { console.error("Erreur de chargement de l'index", e); }
+    } catch (e) {
+        if (e.name === "AbortError") return;
+        console.error("Erreur de chargement de l'index", e);
+    }
 }
 
 /**
  * Récupère la liste des fichiers existants sur le serveur
  */
-async function syncFilesFromServer() {
+async function syncFilesFromServer(signal = undefined) {
     try {
-        const res = await fetch('/api/pdfs');
+        const res = await fetch('/api/pdfs', { signal });
+        if (!res.ok) throw new Error("Erreur /api/pdfs");
         const files = await res.json();
+        if (signal && signal.aborted) return;
         pdfSet = new Set(files.map(f => f.split(/[\/]/).pop()));
-    } catch (e) { pdfSet = new Set(); }
+    } catch (e) {
+        if (e.name === "AbortError") throw e;
+        pdfSet = new Set();
+    }
 }
 
-async function chargerLivresApiAdmin() {
-    const res = await fetch('https://gutendex.com/books/?mime_type=application/pdf');
+async function chargerLivresApiAdmin(signal = undefined) {
+    if (adminApiLivresLoaded) return adminApiLivresCache;
+
+    const res = await fetch('https://gutendex.com/books/?mime_type=application/pdf', { signal });
     if (!res.ok) throw new Error('API indisponible');
+
     const data = await res.json();
-    return (data.results || []).slice(0, 10).map(normalizeGutendexAdmin);
+    adminApiLivresCache = (data.results || []).slice(0, 10).map(normalizeGutendexAdmin);
+    adminApiLivresLoaded = true;
+    return adminApiLivresCache;
 }
 
 function pickFormat(formats, prefix) {
@@ -438,6 +584,7 @@ async function ajouterLivreDemo() {
         const addRes = await fetch(`/api/add?${params.toString()}`);
         
         if (addRes.ok) {
+            clearBorrowOverride({ id: idInput.value, source: "local" });
             status.textContent = "ARCHIVAGE RÉUSSI !";
             status.style.color = "green";
             document.getElementById('add-form').reset();
@@ -450,7 +597,7 @@ async function ajouterLivreDemo() {
                 coverNameDisplay.classList.remove('file-name--active');
             }
             
-            loadLivres(); // Rafraîchir la liste en bas
+            rafraichirLivres(true); // Rafraîchir la liste en bas
         }
 
     } catch (e) {
@@ -514,13 +661,14 @@ async function modifierLivre() {
         }
 
         if (res.ok) {
+            clearBorrowOverride({ id: editId, source: "local" });
             annulerEdition();
             const statusMsg = document.getElementById('pdf-status');
             if (statusMsg) {
                 statusMsg.textContent = "MISE A JOUR REUSSIE !";
                 statusMsg.style.color = "green";
             }
-            loadLivres();
+            rafraichirLivres(true);
         } else {
             const msg = payload && payload.error ? payload.error : "MISE A JOUR IMPOSSIBLE";
             status.textContent = "ERREUR : " + msg;
@@ -535,13 +683,15 @@ async function modifierLivre() {
 /**
  * Supprime un livre de l'index binaire
  */
-async function supprimerLivre(titre) {
+async function supprimerLivre(livre) {
+    const titre = (livre && livre.titre) ? livre.titre : "";
     if (!confirm(`Voulez-vous supprimer définitivement "${titre}" de l'index ?`)) return;
 
     try {
         const res = await fetch(`/api/supprimer?titre=${encodeURIComponent(titre)}`);
         if (res.ok) {
-            loadLivres();
+            clearBorrowOverride({ id: livre ? livre.id : "", source: "local" });
+            rafraichirLivres(true);
         }
     } catch (e) {
         alert("Erreur lors de la suppression.");
