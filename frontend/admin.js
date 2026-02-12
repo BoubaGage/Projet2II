@@ -175,7 +175,7 @@ async function loadLivres() {
                     ? `<p class="admin-card-description">${description}</p>`
                     : `<p class="admin-card-description admin-card-description--empty">Aucune description</p>`;
                 const coverHtml = l.couverture
-                    ? `<img src="${l.couverture}" alt="Couverture" style="width:100%; border-radius:8px;">`
+                    ? `<img src="${l.couverture}" alt="Couverture" class="admin-card-cover">`
                     : '';
 
                 const card = document.createElement('div');
@@ -232,6 +232,10 @@ async function loadLivres() {
             const descHtml = description
                 ? `<p class="admin-card-description">${description}</p>`
                 : `<p class="admin-card-description admin-card-description--empty">Aucune description</p>`;
+            const couverture = (l.couverture || "").trim();
+            const coverHtml = couverture
+                ? `<img src="${couverture}" alt="Couverture" class="admin-card-cover">`
+                : "";
 
             const card = document.createElement('div');
             card.className = `admin-card${exists ? '' : ' admin-card--missing'}${estEmprunte ? ' admin-card--borrowed' : ''}`;
@@ -247,6 +251,7 @@ async function loadLivres() {
                 </div>
                 <h4 class="admin-card-title" title="${l.titre}">${l.titre}</h4>
                 <p class="admin-card-meta">${l.auteur} - ${l.annee || 'N/A'}</p>
+                ${coverHtml}
                 ${descHtml}
 
                 <div class="admin-card-footer">

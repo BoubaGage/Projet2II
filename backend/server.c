@@ -8,6 +8,9 @@
 #include "mongoose.h"
 #include "bibliotheque.h"
 #include "fichiers.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 // --- VARIABLES GLOBALES ---
 static int s_signo = 0;
@@ -23,6 +26,21 @@ static struct Bibliotheque ma_biblio;
 
 static int uri_eq(struct mg_http_message *hm, const char *s) {
   return mg_vcmp(&hm->uri, s) == 0;
+}
+
+static void log_http_request(const struct mg_http_message *hm) {
+  if (hm == NULL) return;
+
+  if (hm->query.len > 0) {
+    printf("[HTTP] %.*s %.*s?%.*s\n",
+           (int) hm->method.len, hm->method.buf,
+           (int) hm->uri.len, hm->uri.buf,
+           (int) hm->query.len, hm->query.buf);
+  } else {
+    printf("[HTTP] %.*s %.*s\n",
+           (int) hm->method.len, hm->method.buf,
+           (int) hm->uri.len, hm->uri.buf);
+  }
 }
 
 static int str_eq_ci(const char *a, const char *b) {
@@ -193,6 +211,7 @@ static char *pdfs_to_json(const char *dir_path) {
 static void event_handler(struct mg_connection *c, int ev, void *ev_data) {
   if (ev == MG_EV_HTTP_MSG) {
     struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+    log_http_request(hm);
 
     // --- ROUTE 1 : Liste de tous les livres (Catalogue) ---
 if (uri_eq(hm, "/api/livres")) {
@@ -246,7 +265,7 @@ if (uri_eq(hm, "/api/livres")) {
         char categorie[64], fichier[256], emprunte_s[16];
         char description[512], couverture[256];
         
-        // Extraction des données de l'URL
+        // Extraction des donnees de l'URL
         int n1 = mg_http_get_var(&hm->query, "id", id_s, sizeof(id_s));
         int n2 = mg_http_get_var(&hm->query, "titre", titre, sizeof(titre));
         int n3 = mg_http_get_var(&hm->query, "auteur", auteur, sizeof(auteur));
@@ -568,7 +587,7 @@ if (uri_eq(hm, "/api/livres")) {
 
     }
 
-    // --- ROUTE PAR DÉFAUT : Serveur de fichiers (Frontend) ---
+    // --- ROUTE PAR DEFAUT : Serveur de fichiers (Frontend) ---
     else {
       struct mg_http_serve_opts opts = {.root_dir = s_root_dir};
       mg_http_serve_dir(c, hm, &opts);
@@ -584,13 +603,18 @@ int main(void) {
   
   biblio_init(&ma_biblio);
 
+#ifdef _WIN32
+  SetConsoleOutputCP(CP_UTF8);
+  SetConsoleCP(CP_UTF8);
+#endif
+
   mg_log_set(s_debug_level);
 
  
   if (fichiers_charger(&ma_biblio, s_data_file)) {
-    printf("Succès : %zu livres chargés depuis %s\n", biblio_count(&ma_biblio), s_data_file);
+    printf("Succes: %zu livres charges depuis %s\n", biblio_count(&ma_biblio), s_data_file);
   } else {
-    printf("Info : Aucun fichier trouvé, démarrage avec une bibliothèque vide.\n");
+    printf("Info: Aucun fichier trouve, demarrage avec une bibliotheque vide.\n");
   }
 
 
@@ -599,12 +623,12 @@ int main(void) {
 
   mg_mgr_init(&mgr); 
   if (mg_http_listen(&mgr, s_listening_address, event_handler, NULL) == NULL) {
-    printf("Erreur fatale : Impossible d'écouter sur %s\n", s_listening_address);
+    printf("Erreur fatale: Impossible d'ecouter sur %s\n", s_listening_address);
     return 1;
   }
 
   printf("Serveur en ligne sur %s\n", s_listening_address);
-  printf("Appuyez sur Ctrl+C pour arrêter proprement.\n");
+  printf("Appuyez sur Ctrl+C pour arreter proprement.\n");
 
   
   while (s_signo == 0) {
@@ -612,11 +636,11 @@ int main(void) {
   }
 
   
-  printf("\nArrêt détecté. Sauvegarde des données...\n");
+  printf("\nArret detecte. Sauvegarde des donnees...\n");
   
 
   if (fichiers_sauvegarder(&ma_biblio, s_data_file)) {
-    printf("Données sauvegardées avec succès.\n");
+    printf("Donnees sauvegardees avec succes.\n");
   }
 
 

@@ -121,7 +121,7 @@ void biblio_remove(Bibliotheque *bibli, const char *titre){
     hash_remove(&bibli->table, titre);
     bibli->nb_livres--;
 
-    printf("Le livre '%s' a été supprimé de la bibliotheque.\n",titre);
+    printf("Le livre '%s' a ete supprime de la bibliotheque.\n", titre);
 }
 void biblio_save(const Bibliotheque *bibli, const char *nom_fichier){
     if (bibli == NULL || nom_fichier == NULL)
@@ -148,7 +148,7 @@ void biblio_save(const Bibliotheque *bibli, const char *nom_fichier){
         }
     }
     fclose(fichier);
-    printf("La bibliothèque a ete sauvegardée dans le fichier : %s\n", nom_fichier);
+    printf("La bibliotheque a ete sauvegardee dans le fichier: %s\n", nom_fichier);
 }
 
 void biblio_load(Bibliotheque *bibli, const char *nom_fichier){
@@ -156,7 +156,7 @@ void biblio_load(Bibliotheque *bibli, const char *nom_fichier){
         return;
     FILE *fichier = fopen(nom_fichier, "r");
     if (fichier == NULL){
-        printf("Aucune fichier de sauvegarde trouvé : %s\n", nom_fichier);
+        printf("Aucun fichier de sauvegarde trouve: %s\n", nom_fichier);
         return;
     }
     char ligne[4096];
@@ -195,7 +195,7 @@ void biblio_load(Bibliotheque *bibli, const char *nom_fichier){
         }
     }
     fclose(fichier);
-    printf("La bibliothèque a été chargée à partir du fichier : %s\n", nom_fichier);
+    printf("La bibliotheque a ete chargee a partir du fichier: %s\n", nom_fichier);
 }
 char *biblio_to_json(const Bibliotheque *bibli){
     if (bibli == NULL)

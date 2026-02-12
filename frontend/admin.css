@@ -578,6 +578,17 @@ button {
     font-style: italic;
 }
 
+.admin-card-cover {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    margin-bottom: 1rem;
+}
+
 .admin-card-description {
     margin: 0 0 1rem;
     font-size: 11px;
