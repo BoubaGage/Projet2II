@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mon Espace - My BiblioGest</title>
     <link rel="icon" type="image/x-icon" href="/icon/reading_education_knowledge_learning_library_book_icon_256746.png">
-    <link rel="stylesheet" href="page_user.css">
+    <link rel="stylesheet" href="Emprunt.css">
 </head>
-<body class="page page-library">
+<body class="page page-library emprunt-page">
 
     <header class="library-header">
         <div class="brand">
@@ -15,8 +15,8 @@
             <span class="brand-name">My BiblioGest</span>
         </div>
         <nav class="library-nav">
-            <a href="Emprunt.html" class="library-nav-link library-nav-link--hover ">Emprunt</a>
-            <div class="library-nav-link library-nav-link--active">Accueil</div>
+            <div class="library-nav-link library-nav-link--active">Emprunt</div>
+            <a href="page_user.html" class="library-nav-link library-nav-link--hover">Accueil</a>
             <a href="index.html" class="library-nav-link library-nav-link--danger">Quitter</a>
         </nav>
     </header>
@@ -26,7 +26,7 @@
             
             <div class="library-hero">
                 <h1 class="library-title">
-                    Que souhaitez-vous <span class="library-title-accent">explorer</span> ?
+                    Vos livres <span class="library-title-accent">emprunter</span> 
                 </h1>
                 
                 <div class="search-bar">
@@ -61,5 +61,32 @@
     </footer>
 
     <script src="app.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', async function(){
+        const grid = document.getElementById('livres-grid');
+        const email = (() => { try { return localStorage.getItem('email'); } catch(e){ return null; } })();
+        if (!email) {
+            grid.innerHTML = '<div class="books-empty">Vous devez être connecté pour voir vos emprunts.</div>';
+            return;
+        }
+        try {
+            const res = await fetch('/api/emprunts?email=' + encodeURIComponent(email));
+            if (!res.ok) throw new Error('Erreur serveur');
+            const livres = await res.json();
+            if (!livres || livres.length === 0) {
+                grid.innerHTML = '<div class="books-empty">Vous n\'avez aucun livre emprunté.</div>';
+                return;
+            }
+            grid.innerHTML = '';
+            livres.forEach(l => {
+                const card = creerCarteLivre(l);
+                grid.appendChild(card);
+            });
+        } catch (err) {
+            grid.innerHTML = '<div class="books-empty">Erreur lors du chargement des emprunts.</div>';
+            console.error(err);
+        }
+    });
+    </script>
 </body>
 </html>

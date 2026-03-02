@@ -78,6 +78,10 @@ button {
 .admin-nav-link {
     transition: color 0.15s ease;
 }
+.admin-nav-link--active {
+    color: #fff;
+    text-decoration: underline;
+}
 
 .admin-nav-link:hover {
     color: #fff;

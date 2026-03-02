@@ -12,6 +12,7 @@ function loadPdf() {
 
     const titleElement = document.getElementById('pdf-title');
     const frame = document.getElementById('pdf-viewer');
+    const main = document.querySelector('.reader-main');
 
     if (titleElement) titleElement.innerText = titre || baseName(fichier) || 'Lecture';
     if (titleElement && format && format !== 'pdf') {
@@ -19,11 +20,27 @@ function loadPdf() {
     }
 
     if (frame && url) {
-        frame.src = url;
-    } else if (frame && fichier) {
-        // Load local PDF through the C server
-        let finalPath = fichier.includes('livres/') ? fichier : `livres/${baseName(fichier)}`;
-        frame.src = `/api/afficher?fichier=${encodeURIComponent(finalPath)}`;
+        // Si le lien est un PDF direct, tenter l'affichage
+        if (url.endsWith('.pdf')) {
+            frame.src = url;
+        } else {
+            frame.style.display = 'none';
+            if (main) {
+                const btn = document.createElement('button');
+                btn.textContent = 'Ouvrir le livre externe';
+                btn.className = 'reader-external-btn';
+                btn.onclick = () => window.open(url, '_blank');
+                main.appendChild(btn);
+                const msg = document.createElement('div');
+                msg.className = 'reader-external-msg';
+                msg.textContent = "Ce livre ne peut pas être affiché directement. Cliquez sur le bouton pour l'ouvrir dans un nouvel onglet.";
+                main.appendChild(msg);
+            }
+        }
+    } else if (frame && fichier && !url) {
+        // Toujours préfixer par 'livres/' pour les fichiers locaux
+        let finalPath = baseName(fichier);
+        frame.src = `/api/afficher?fichier=${encodeURIComponent('livres/' + finalPath)}`;
     }
 }
 

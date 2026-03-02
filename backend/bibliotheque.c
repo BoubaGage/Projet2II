@@ -9,6 +9,7 @@ void biblio_init(Bibliotheque *bibli){
         return;
     hash_init(&bibli->table);
     bibli->nb_livres = 0;
+    bibli->next_id = 1;
 }
 
 void biblio_free(Bibliotheque *bibli){
@@ -16,12 +17,16 @@ void biblio_free(Bibliotheque *bibli){
     return;
     hash_free(&bibli->table);
     bibli->nb_livres = 0;
+    bibli->next_id = 1;
 }
 
 void biblio_add(Bibliotheque *bibli, const Livre *livre){
     if (bibli == NULL || livre == NULL) return;
     hash_insert(&bibli->table, livre);
     bibli->nb_livres++;
+    if (livre->id >= bibli->next_id) {
+        bibli->next_id = livre->id + 1;
+    }
     printf("Le livre '%s' a ete ajoute a la bibliotheque.\n", livre->titre);
 }
 
@@ -246,4 +251,9 @@ char *biblio_to_json(const Bibliotheque *bibli){
 
     strcat(json, "\n]");
     return json;
+}
+
+int biblio_next_id(Bibliotheque *bibli){
+    if (bibli == NULL) return 1;
+    return bibli->next_id;
 }

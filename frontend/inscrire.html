@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>S'inscrire - My BiblioGest</title>
     <link rel="stylesheet" href="inscrire.css">
+    <link rel="icon" type="image/x-icon" href="/icon/reading_education_knowledge_learning_library_book_icon_256746.png">
 </head>
 <body class="auth-page">
 
@@ -21,30 +22,30 @@
             <h1 class="auth-title">Nouveau Lecteur</h1>
             <p class="auth-subtitle">Rejoignez notre communauté de bibliophiles</p>
 
-            <form class="auth-form auth-form--grid">
+            <form id="registerForm" class="auth-form auth-form--grid">
                 <div class="form-field">
                     <label class="form-label">Nom</label>
-                    <input type="text" placeholder="Nom" class="form-input">
+                    <input name="nom" type="text" placeholder="Nom" class="form-input" required>
                 </div>
 
                 <div class="form-field">
                     <label class="form-label">Prenom</label>
-                    <input type="text" placeholder="Prenom" class="form-input">
+                    <input name="prenom" type="text" placeholder="Prenom" class="form-input" required>
                 </div>
 
                 <div class="form-field form-field--full">
                     <label class="form-label">Email</label>
-                    <input type="email" placeholder="exemple@gmail.com" class="form-input">
+                    <input name="email" type="email" placeholder="exemple@gmail.com" class="form-input" required>
                 </div>
 
                 <div class="form-field">
                     <label class="form-label">Mot de passe</label>
-                    <input type="password" placeholder="••••••••" class="form-input">
+                    <input name="pwd" type="password" placeholder="••••••••" class="form-input" required>
                 </div>
 
                 <div class="form-field">
                     <label class="form-label">Confirmation</label>
-                    <input type="password" placeholder="••••••••" class="form-input">
+                    <input name="confirm" type="password" placeholder="••••••••" class="form-input" required>
                 </div>
 
                 <div class="auth-actions">
@@ -62,5 +63,29 @@
         My BiblioGest &bull; Inscription Sécurisée
     </footer>
 
+    <script>
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const form = e.target;
+        if (form.pwd.value !== form.confirm.value) {
+            alert('Les mots de passe ne correspondent pas');
+            return;
+        }
+        const data = new FormData(form);
+        const params = new URLSearchParams(data);
+        try {
+            const res = await fetch('/api/register?' + params.toString());
+            if (res.ok) {
+                alert('Inscription réussie !');
+                window.location.href = 'se_connecter.html';
+            } else {
+                const err = await res.json();
+                alert('Erreur : ' + (err.error || res.statusText));
+            }
+        } catch (err) {
+            alert('Erreur réseau');
+        }
+    });
+    </script>
 </body>
 </html>

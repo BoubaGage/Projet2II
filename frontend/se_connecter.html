@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Connexion - My BiblioGest</title>
     <link rel="stylesheet" href="se_connecter.css">
+    <link rel="icon" type="image/x-icon" href="/icon/reading_education_knowledge_learning_library_book_icon_256746.png">
 </head>
 <body class="auth-page">
 
@@ -21,27 +22,21 @@
             <h1 class="auth-title">Bienvenue</h1>
             <p class="auth-subtitle">Accédez à votre espace de lecture</p>
 
-            <form class="auth-form auth-form--stack">
+            <form id="loginForm" class="auth-form auth-form--stack">
                 <div class="form-field">
                     <label class="form-label">Identifiant</label>
-                    <input type="text" placeholder="Email / téléphone" class="form-input">
+                    <input name="email" type="text" placeholder="Email / téléphone" class="form-input" required>
                 </div>
 
                 <div class="form-field">
                     <label class="form-label">Mot de passe</label>
-                    <input type="password" placeholder="••••••••" class="form-input">
+                    <input name="pwd" type="password" placeholder="••••••••" class="form-input" required>
                 </div>
-                <a href="page_user.html">
+
                 <div class="auth-actions">
-                    <button type="button" onclick="window.location.href='page.html'" class="auth-submit">
-                        Se connecter <br> en tant qu'utilisateur
+                    <button type="submit" class="auth-submit">
+                        Se connecter
                     </button>
-                </a>
-                <a href="page.html">
-                     <button type="button" onclick="window.location.href='page.html'" class="auth-submit">
-                        Se connecter <br> en tant qu'admin
-                    </button>
-                </a>
                 </div>
             </form>
 
@@ -55,5 +50,31 @@
         My BiblioGest &bull; Connexion Sécurisée
     </footer>
 
+    <script>
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const data = new FormData(e.target);
+        const params = new URLSearchParams(data);
+        try {
+            const res = await fetch('/api/login?' + params.toString());
+            const body = await res.json().catch(() => ({}));
+            if (res.ok && body.status === 'ok') {
+                // sauvegarder l'email localement pour requêtes ultérieures
+                const em = data.get('email');
+                try { localStorage.setItem('email', em); } catch(e) {}
+                try { localStorage.setItem('role', body.role); } catch(e) {}
+                if (body.role === 'admin') {
+                    window.location.href = 'admin.html';
+                } else {
+                    window.location.href = 'page_user.html';
+                }
+            } else {
+                alert('Connexion échouée : ' + (body.error || res.statusText));
+            }
+        } catch (err) {
+            alert('Erreur réseau');
+        }
+    });
+    </script>
 </body>
 </html>

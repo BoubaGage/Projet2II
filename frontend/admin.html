@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestion - My BiblioGest</title>
     <link rel="stylesheet" href="admin.css">
+    <link rel="icon" type="image/x-icon" href="/icon/reading_education_knowledge_learning_library_book_icon_256746.png">
 </head>
 <body class="admin-page">
 
@@ -14,7 +15,9 @@
             <span class="brand-name">My BiblioGest</span>
         </div>
         <nav class="admin-nav">
+            <a href="admin_emprunts.html" class="admin-nav-link admin-nav-link--hover">Historique d'emprunts</a>
             <a href="page.html" class="admin-nav-link">Accueil</a>
+            <a href="admin.html" class="admin-nav-link admin-nav-link--active">Gestion</a>
             <a href="index.html" class="admin-nav-link admin-nav-link--danger">Déconnexion</a>
         </nav>
     </header>
@@ -39,10 +42,6 @@
                     
                     <form id="add-form" class="admin-form">
                         <div class="form-row">
-                            <div class="form-field">
-                                <label class="form-label">ID</label>
-                                <input type="number" id="form-id" min="1" required class="form-input form-input--strong" title="ID de l'ouvrage">
-                            </div>
                         <div class="form-field">
                             <label class="form-label">Année d'édition</label>
                             <input type="number" id="form-annee" class="form-input" title="Année d'édition de l'ouvrage">
